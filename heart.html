@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>3D Glitter Heart with NANI</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    canvas {
+      display: block;
+    }
+    #nani {
+      position: absolute;
+      font-size: 80px;
+      font-weight: bold;
+      color: #ff66b2;
+      text-shadow: 0 0 20px #ff99cc, 0 0 40px #ff66b2, 0 0 80px #ff3399;
+      opacity: 0;
+      transition: opacity 2s ease-in;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body>
+  <div id="nani">NANI</div>
+
+  <!-- Three.js & GSAP -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
+
+  <script>
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.z = 90;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Heart function
+    function heartFunction(t) {
+      const x = 16 * Math.pow(Math.sin(t), 3);
+      const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+      return { x, y };
+    }
+
+    // Particle geometry
+    const particleCount = 4000;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+
+    const startPositions = new Float32Array(particleCount * 3);
+    const targetPositions = new Float32Array(particleCount * 3);
+
+    const color = new THREE.Color();
+    const scale = 2.5;
+
+    for (let i = 0; i < particleCount; i++) {
+      // Start scattered randomly
+      startPositions[i*3]   = (Math.random() - 0.5) * 200;
+      startPositions[i*3+1] = (Math.random() - 0.5) * 200;
+      startPositions[i*3+2] = (Math.random() - 0.5) * 200;
+
+      // Target in clockwise order around the heart
+      const t = (i / particleCount) * 2 * Math.PI; 
+      const { x, y } = heartFunction(t);
+      targetPositions[i*3]   = x * scale;
+      targetPositions[i*3+1] = y * scale;
+      targetPositions[i*3+2] = (Math.random() - 0.5) * 6;
+
+      // Initial position = scattered
+      positions[i*3]   = startPositions[i*3];
+      positions[i*3+1] = startPositions[i*3+1];
+      positions[i*3+2] = startPositions[i*3+2];
+
+      // Pink/purple shades
+      color.setHSL(0.9 + Math.random() * 0.1, 1, 0.5 + Math.random() * 0.2);
+      colors[i*3]   = color.r;
+      colors[i*3+1] = color.g;
+      colors[i*3+2] = color.b;
+    }
+
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+      size: 0.7,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.9
+    });
+
+    const heart = new THREE.Points(geometry, material);
+    scene.add(heart);
+
+    // Animate particles to form heart clockwise slowly
+    function animateFormation() {
+      for (let i = 0; i < particleCount; i++) {
+        const delay = i * 0.0015; // controls clockwise draw speed
+        gsap.to(positions, {
+          [i*3]: targetPositions[i*3],
+          [i*3+1]: targetPositions[i*3+1],
+          [i*3+2]: targetPositions[i*3+2],
+          duration: 3,
+          delay: delay,
+          ease: "power2.out",
+          onUpdate: () => {
+            geometry.attributes.position.needsUpdate = true;
+          },
+          onComplete: () => {
+            if (i === particleCount-1) {
+              document.getElementById("nani").style.opacity = 1; // Show text after formation
+            }
+          }
+        });
+      }
+    }
+    animateFormation();
+
+    // Heartbeat scale animation
+    gsap.to(heart.scale, {
+      x: 1.1, y: 1.1, z: 1.1,
+      duration: 1.2,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Floating rotation
+    gsap.to(scene.rotation, {
+      y: 0.6,
+      duration: 6,
+      repeat: -1,
+      yoyo: true,
+      ease: "power2.inOut"
+    });
+
+    gsap.to(scene.rotation, {
+      x: 0.2,
+      duration: 8,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Animate (twinkle effect)
+    function animate() {
+      const positions = heart.geometry.attributes.position.array;
+      for (let i = 0; i < positions.length; i += 3) {
+        positions[i + 2] += Math.sin(Date.now() * 0.001 + i) * 0.002; // shimmer
+      }
+      heart.geometry.attributes.position.needsUpdate = true;
+
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Resize
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
